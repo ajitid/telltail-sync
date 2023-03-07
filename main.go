@@ -66,7 +66,6 @@ func autoSend(skipSend, restore chan bool) {
 			if len(text) == 0 {
 				break
 			}
-			restore <- false
 			textToRestore = text
 			reader := strings.NewReader(text)
 			http.Post(Url+"/set", "text/plain; charset=UTF-8", reader)
@@ -112,13 +111,11 @@ func restoreOriginal(skipSend, restore chan bool) {
 	t := time.AfterFunc(0, func() {})
 
 	for {
-		r := <-restore
+		<-restore
 		t.Stop()
-		if r {
-			t = time.AfterFunc(2*time.Minute, func() {
-				writeToClipboard(textToRestore, skipSend)
-			})
-		}
+		t = time.AfterFunc(2*time.Minute, func() {
+			writeToClipboard(textToRestore, skipSend)
+		})
 	}
 }
 
