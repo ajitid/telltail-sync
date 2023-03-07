@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/atotto/clipboard"
 	"github.com/r3labs/sse/v2"
@@ -29,15 +30,26 @@ func autoSend() {
 	if !commandExists("clipnotify") {
 		fmt.Println("We need `clipnotify` to detect whether if you've copied something. `clipnotify` is only available for X11 systems.")
 		fmt.Println("If you are on X11 put `clipnotify` in any of these paths and rerun this program:", os.Getenv("PATH"))
+		fmt.Println("Preferably put it in `/usr/local/bin/`.")
 		return
 	}
+
+	failCount := 0
 
 	for {
 		cmd := exec.Command("clipnotify", "-s", "clipboard")
 		_, err := cmd.Output()
 		if err != nil {
-			// this should never happen
-			log.Fatal(err)
+			// It will continue to fail until the GUI is loaded up after boot/login.
+			// We'll silently wait for it to succeed.
+			// Probably the proper way to solve this is to make changes in the systemd
+			// service file such that this program gets invoked even later.
+			failCount++
+			if failCount >= 22 {
+				log.Fatal("waited too long for `clipnotify` to succeed.")
+			}
+			time.Sleep(2 * time.Second)
+			continue
 		}
 
 		text, err := clipboard.ReadAll()
