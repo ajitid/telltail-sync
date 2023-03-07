@@ -23,7 +23,7 @@ func commandExists(cmd string) bool {
 
 func autoSend() {
 	if runtime.GOOS != "linux" {
-		fmt.Println("Your ctrl+c / cmd+c will not be automatically send to telltail as this feature is not supported yet.")
+		fmt.Println("Your ctrl+c / cmd+c will not be automatically send to telltail as this feature is not supported yet for your OS.")
 		return
 	}
 
@@ -55,6 +55,9 @@ func autoSend() {
 		text, err := clipboard.ReadAll()
 		if err != nil {
 			log.Fatal("clipboard isn't accessible", err)
+		}
+		if len(text) == 0 {
+			continue
 		}
 		reader := strings.NewReader(text)
 		http.Post(Url+"/set", "text/plain; charset=UTF-8", reader)
