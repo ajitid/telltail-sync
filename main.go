@@ -21,7 +21,7 @@ func commandExists(cmd string) bool {
 	return err == nil
 }
 
-func autoSend() {
+func autoSend(skipSend chan bool) {
 	if runtime.GOOS != "linux" {
 		fmt.Println("Your ctrl+c / cmd+c will not be automatically send to telltail as this feature is not supported yet for your OS.")
 		return
@@ -52,19 +52,23 @@ func autoSend() {
 			continue
 		}
 
-		text, err := clipboard.ReadAll()
-		if err != nil {
-			log.Fatal("clipboard isn't accessible", err)
+		select {
+		case <-skipSend:
+		default:
+			text, err := clipboard.ReadAll()
+			if err != nil {
+				log.Fatal("clipboard isn't accessible", err)
+			}
+			if len(text) == 0 {
+				continue
+			}
+			reader := strings.NewReader(text)
+			http.Post(Url+"/set", "text/plain; charset=UTF-8", reader)
 		}
-		if len(text) == 0 {
-			continue
-		}
-		reader := strings.NewReader(text)
-		http.Post(Url+"/set", "text/plain; charset=UTF-8", reader)
 	}
 }
 
-func autoReceive() {
+func autoReceive(skipSend, done chan bool) {
 	client := sse.NewClient(Url + "/events")
 	client.EncodingBase64 = true // if not done, only first line of multiline string will be send, see https://github.com/r3labs/sse/issues/62
 
@@ -78,11 +82,16 @@ func autoReceive() {
 		if clipText == telltailText {
 			return
 		}
+		skipSend <- true
 		clipboard.WriteAll(string(msg.Data))
 	})
+	done <- true
 }
 
 func main() {
-	go autoSend()
-	autoReceive()
+	done := make(chan bool)
+	skipSend := make(chan bool, 1)
+	go autoSend(skipSend)
+	go autoReceive(skipSend, done)
+	<-done
 }
