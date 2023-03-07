@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 )
 
 const Url = "https://sd.alai-owl.ts.net:1111"
+const device = "100.109.205.35"
 
 var textToRestore string
 
@@ -64,6 +66,7 @@ func autoSend(skipSend, restore chan bool) {
 			if len(text) == 0 {
 				break
 			}
+			restore <- false
 			textToRestore = text
 			reader := strings.NewReader(text)
 			http.Post(Url+"/set", "text/plain; charset=UTF-8", reader)
@@ -85,14 +88,22 @@ func writeToClipboard(text string, skipSend chan bool) {
 	clipboard.WriteAll(text)
 }
 
+type sseJson struct {
+	Text   string
+	Device string `json:"text"`
+}
+
 func autoReceive(skipSend, restore, done chan bool) {
 	client := sse.NewClient(Url + "/events")
 	client.EncodingBase64 = true // if not done, only first line of multiline string will be send, see https://github.com/r3labs/sse/issues/62
 
-	client.Subscribe("text", func(msg *sse.Event) {
-		text := string(msg.Data)
-		restore <- text != textToRestore
-		writeToClipboard(text, skipSend)
+	client.Subscribe("texts", func(msg *sse.Event) {
+		j := sseJson{}
+		json.Unmarshal(msg.Data, &j)
+		if j.Device != device {
+			restore <- true
+			writeToClipboard(j.Text, skipSend)
+		}
 	})
 	done <- true
 }
