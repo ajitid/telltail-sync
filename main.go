@@ -68,10 +68,10 @@ func autoSend(skipSend, restore chan bool) {
 			if err != nil {
 				log.Fatal("clipboard isn't accessible", err)
 			}
-			if len(text) == 0 {
+			textToRestore = text
+			if len(text) == 0 || len(text) > 65536 {
 				break
 			}
-			textToRestore = text
 			p := &payload{
 				Text:   text,
 				Device: device,
@@ -91,7 +91,7 @@ func writeToClipboard(text string, skipSend chan bool) {
 	if err != nil {
 		log.Fatal("clipboard isn't accessible", err)
 	}
-	if text == clipText || len(text) == 0 {
+	if text == clipText {
 		return
 	}
 	// ^ We are avoiding unnecessary writes because other programs would be monitoring clipboard for changes as well.
