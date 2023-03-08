@@ -68,6 +68,7 @@ func autoSend(skipSend, restore chan bool) {
 			if err != nil {
 				log.Fatal("clipboard isn't accessible", err)
 			}
+			restore <- false
 			textToRestore = text
 			if len(text) == 0 || len(text) > 65536 {
 				break
@@ -119,11 +120,13 @@ func restoreOriginal(skipSend, restore chan bool) {
 	t := time.AfterFunc(0, func() {})
 
 	for {
-		<-restore
+		r := <-restore
 		t.Stop()
-		t = time.AfterFunc(2*time.Minute, func() {
-			writeToClipboard(textToRestore, skipSend)
-		})
+		if r {
+			t = time.AfterFunc(2*time.Minute, func() {
+				writeToClipboard(textToRestore, skipSend)
+			})
+		}
 	}
 }
 
