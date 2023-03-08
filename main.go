@@ -92,10 +92,16 @@ func writeToClipboard(text string, skipSend chan bool) {
 	if err != nil {
 		log.Fatal("clipboard isn't accessible", err)
 	}
+	/*
+		Avoid unnecessary writes, because:
+		- Other programs would be monitoring clipboard as well and we shouldn't be sending extraneous events
+		- If an image is in the clipboard, image/png would have something but text/plain would be empty. If we override it,
+		  we would be overriding it with nothing i.e. we would lose information. This would happen because we're only storing
+			text/plain MIME in program's memory.
+	*/
 	if text == clipText {
 		return
 	}
-	// ^ We are avoiding unnecessary writes because other programs would be monitoring clipboard for changes as well.
 
 	skipSend <- true
 	clipboard.WriteAll(text)
@@ -137,5 +143,8 @@ func main() {
 	go autoSend(skipSend, restore)
 	go autoReceive(skipSend, restore, done)
 	go restoreOriginal(skipSend, restore)
+	// This `done` should never happen, because it would mean that somehow
+	// sse client stopped listening. If that happens, we'd need to figure out
+	// a way to resubscribe it.
 	<-done
 }
