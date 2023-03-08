@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -8,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/atotto/clipboard"
@@ -19,6 +19,11 @@ const Url = "https://sd.alai-owl.ts.net:1111"
 const device = "100.109.205.35"
 
 var textToRestore string
+
+type payload struct {
+	Text   string
+	Device string
+}
 
 func commandExists(cmd string) bool {
 	_, err := exec.LookPath(cmd)
@@ -67,8 +72,16 @@ func autoSend(skipSend, restore chan bool) {
 				break
 			}
 			textToRestore = text
-			reader := strings.NewReader(text)
-			http.Post(Url+"/set", "text/plain; charset=UTF-8", reader)
+			p := &payload{
+				Text:   text,
+				Device: device,
+			}
+			b, err := json.Marshal(p)
+			if err != nil {
+				log.Fatal("couldn't send the payload to /set")
+			}
+			r := bytes.NewReader(b)
+			http.Post(Url+"/set", "application/json", r)
 		}
 	}
 }
@@ -87,17 +100,12 @@ func writeToClipboard(text string, skipSend chan bool) {
 	clipboard.WriteAll(text)
 }
 
-type sseJson struct {
-	Text   string
-	Device string `json:"text"`
-}
-
 func autoReceive(skipSend, restore, done chan bool) {
 	client := sse.NewClient(Url + "/events")
 	client.EncodingBase64 = true // if not done, only first line of multiline string will be send, see https://github.com/r3labs/sse/issues/62
 
 	client.Subscribe("texts", func(msg *sse.Event) {
-		j := sseJson{}
+		var j payload
 		json.Unmarshal(msg.Data, &j)
 		if j.Device != device {
 			restore <- true
