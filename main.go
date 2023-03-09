@@ -19,6 +19,7 @@ const Url = "https://sd.alai-owl.ts.net:1111"
 const device = "100.109.205.35"
 
 var textToRestore string
+var restorationPossible bool
 
 type payload struct {
 	Text   string
@@ -42,6 +43,8 @@ func autoSend(skipSend, restore chan bool) {
 		fmt.Println("Preferably put it in `/usr/local/bin/`.")
 		return
 	}
+
+	restorationPossible = true
 
 	failCount := 0
 
@@ -128,7 +131,7 @@ func restoreOriginal(skipSend, restore chan bool) {
 	for {
 		r := <-restore
 		t.Stop()
-		if r {
+		if restorationPossible && r {
 			t = time.AfterFunc(2*time.Minute, func() {
 				writeToClipboard(textToRestore, skipSend)
 			})
