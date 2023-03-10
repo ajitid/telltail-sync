@@ -31,62 +31,82 @@ func commandExists(cmd string) bool {
 	return err == nil
 }
 
-func autoSend(skipSend, restore chan bool) {
-	if runtime.GOOS != "linux" {
-		fmt.Println("Your ctrl+c / cmd+c will not be automatically send to telltail as this feature is not supported yet for your OS.")
-		return
-	}
-
-	if !commandExists("clipnotify") {
-		fmt.Println("We need `clipnotify` to detect whether if you've copied something. `clipnotify` is only available for X11 systems.")
-		fmt.Println("If you are on X11 put `clipnotify` in any of these paths and rerun this program:", os.Getenv("PATH"))
-		fmt.Println("Preferably put it in `/usr/local/bin/`.")
-		return
-	}
-
-	restorationPossible = true
-
-	failCount := 0
-
-	for {
-		cmd := exec.Command("clipnotify", "-s", "clipboard")
-		_, err := cmd.Output()
+func sendToTelltail(skipSend, restore chan bool) {
+	select {
+	case <-skipSend:
+	default:
+		text, err := clipboard.ReadAll()
 		if err != nil {
-			// It will continue to fail until the GUI is loaded up after boot/login.
-			// We'll silently wait for it to succeed.
-			// Probably the proper way to solve this is to make changes in the systemd
-			// service file such that this program gets invoked even later.
-			failCount++
-			if failCount >= 22 {
-				log.Fatal("waited too long for `clipnotify` to succeed.")
-			}
-			time.Sleep(2 * time.Second)
-			continue
+			log.Fatal("clipboard isn't accessible", err)
+		}
+		restore <- false
+		textToRestore = text
+		if len(text) == 0 || len(text) > 65536 {
+			break
+		}
+		p := &payload{
+			Text:   text,
+			Device: device,
+		}
+		b, err := json.Marshal(p)
+		if err != nil {
+			log.Fatal("couldn't send the payload to /set")
+		}
+		r := bytes.NewReader(b)
+		http.Post(Url+"/set", "application/json", r)
+	}
+}
+
+func autoSend(skipSend, restore chan bool) {
+	switch runtime.GOOS {
+	case "linux":
+		if !commandExists("clipnotify") {
+			fmt.Println("We need `clipnotify` to detect whether if you've copied something. `clipnotify` is only available for X11 systems.")
+			fmt.Println("If you are on X11 put `clipnotify` in any of these paths and rerun this program:", os.Getenv("PATH"))
+			fmt.Println("Preferably put it in `/usr/local/bin/`.")
+			return
 		}
 
-		select {
-		case <-skipSend:
-		default:
-			text, err := clipboard.ReadAll()
+		restorationPossible = true
+
+		failCount := 0
+
+		for {
+			cmd := exec.Command("clipnotify", "-s", "clipboard")
+			_, err := cmd.Output()
 			if err != nil {
-				log.Fatal("clipboard isn't accessible", err)
+				// It will continue to fail until the GUI is loaded up after boot/login.
+				// We'll silently wait for it to succeed.
+				// Probably the proper way to solve this is to make changes in the systemd
+				// service file such that this program gets invoked even later.
+				failCount++
+				if failCount >= 22 {
+					log.Fatal("waited too long for `clipnotify` to succeed.")
+				}
+				time.Sleep(2 * time.Second)
+				continue
 			}
-			restore <- false
-			textToRestore = text
-			if len(text) == 0 || len(text) > 65536 {
-				break
-			}
-			p := &payload{
-				Text:   text,
-				Device: device,
-			}
-			b, err := json.Marshal(p)
-			if err != nil {
-				log.Fatal("couldn't send the payload to /set")
-			}
-			r := bytes.NewReader(b)
-			http.Post(Url+"/set", "application/json", r)
+
+			sendToTelltail(skipSend, restore)
 		}
+	case "windows":
+		restorationPossible = true
+
+		for {
+			cmd := exec.Command("python", "clipnotify-win.py")
+			_, err := cmd.Output()
+			if err != nil {
+				// this should never have happened
+				// the only way it could fail if:
+				// - either deps for clipnotify have not been installed, or
+				// - or the python file to run couldn't be located
+				log.Fatal("clipboard notifier failed")
+			}
+
+			sendToTelltail(skipSend, restore)
+		}
+	default:
+		fmt.Println("Your ctrl+c / cmd+c will not be automatically send to telltail as this feature is not supported yet for your OS.")
 	}
 }
 
