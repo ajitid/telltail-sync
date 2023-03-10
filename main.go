@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"flag" // there are also https://pkg.go.dev/github.com/pborman/getopt (v2) and https://github.com/spf13/cobra
 	"fmt"
 	"log"
 	"net/http"
@@ -15,8 +16,9 @@ import (
 	"github.com/r3labs/sse/v2"
 )
 
-const Url = "https://sd.alai-owl.ts.net:1111"
-const device = "100.109.205.35"
+var (
+	url, device string
+)
 
 var textToRestore string
 var restorationPossible bool
@@ -53,7 +55,7 @@ func sendToTelltail(skipSend, restore chan bool) {
 			log.Fatal("couldn't send the payload to /set")
 		}
 		r := bytes.NewReader(b)
-		http.Post(Url+"/set", "application/json", r)
+		http.Post(url+"/set", "application/json", r)
 	}
 }
 
@@ -131,7 +133,7 @@ func writeToClipboard(text string, skipSend chan bool) {
 }
 
 func autoReceive(skipSend, restore, done chan bool) {
-	client := sse.NewClient(Url + "/events")
+	client := sse.NewClient(url + "/events")
 	client.EncodingBase64 = true // if not done, only first line of multiline string will be send, see https://github.com/r3labs/sse/issues/62
 
 	client.Subscribe("texts", func(msg *sse.Event) {
@@ -160,6 +162,17 @@ func restoreOriginal(skipSend, restore chan bool) {
 }
 
 func main() {
+	flag.StringVar(&url, "url", "", "URL of Telltail, usually looks like https://telltail.tailnet-name.ts.net")
+	flag.StringVar(&device, "device", "", "Device ID: pass the device name or IP assigned in Tailscale")
+	flag.Parse()
+
+	if len(url) == 0 {
+		log.Fatal("`--url` parameter not provided")
+	}
+	if len(device) == 0 {
+		log.Fatal("`--device` parameter not provided")
+	}
+
 	done := make(chan bool)
 	skipSend := make(chan bool, 1)
 	restore := make(chan bool)
