@@ -95,13 +95,32 @@ func autoSend(skipSend, restore chan bool) {
 		restorationPossible = true
 
 		for {
-			cmd := exec.Command("python", "clipnotify-win.py")
+			cmd := exec.Command("python", "clipnotify_win.py")
 			_, err := cmd.Output()
 			if err != nil {
 				// this should never have happened
 				// the only way it could fail if:
 				// - either deps for clipnotify have not been installed, or
 				// - or the python file to run couldn't be located
+				log.Fatal("clipboard notifier failed")
+			}
+
+			sendToTelltail(skipSend, restore)
+		}
+	case "darwin":
+		if !commandExists("clipnotify-mac") {
+			fmt.Println("We need `clipnotify-mac` to detect whether if you've copied something.")
+			fmt.Println("You can put `clipnotify-mac` in any of these paths and rerun this program:", os.Getenv("PATH"))
+			fmt.Println("Preferably put it in `/usr/local/bin/`.")
+			return
+		}
+
+		restorationPossible = true
+
+		for {
+			cmd := exec.Command("clipnotify-mac")
+			_, err := cmd.Output()
+			if err != nil {
 				log.Fatal("clipboard notifier failed")
 			}
 
