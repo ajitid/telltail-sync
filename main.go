@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"flag" // there are also https://pkg.go.dev/github.com/pborman/getopt (v2) and https://github.com/spf13/cobra
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
