@@ -39,7 +39,7 @@ func sendToTelltail(skipSend, restore chan bool) {
 	default:
 		text, err := clipboard.ReadAll()
 		if err != nil {
-			log.Fatal("clipboard isn't accessible", err)
+			log.Fatal("cannot send clipboard's content to telltail because the clipboard isn't accessible for read\n", err)
 		}
 		restore <- false
 		textToRestore = text
@@ -134,7 +134,7 @@ func autoSend(skipSend, restore chan bool) {
 func writeToClipboard(text string, skipSend chan bool) {
 	clipText, err := clipboard.ReadAll()
 	if err != nil {
-		log.Fatal("clipboard isn't accessible", err)
+		log.Fatal("unable to write text to clipboard because clipboard isn't accessible for read\n", err)
 	}
 	/*
 		Avoid unnecessary writes, because:
@@ -148,7 +148,10 @@ func writeToClipboard(text string, skipSend chan bool) {
 	}
 
 	skipSend <- true
-	clipboard.WriteAll(text)
+	err = clipboard.WriteAll(text)
+	if err != nil {
+		log.Fatal("unable to write to clipboard\n", err)
+	}
 }
 
 func autoReceive(skipSend, restore, done chan bool) {
