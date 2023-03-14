@@ -20,8 +20,10 @@ var (
 	url, device string
 )
 
-var textToRestore string
-var restorationPossible bool
+// Expiring text received from telltail won't be possible if we
+// aren't notified that user has copied something to the clipboard.
+// Expiring simply means clearing out the clipboard.
+var expirationPossible bool
 
 type payload struct {
 	Text   string
@@ -33,7 +35,7 @@ func commandExists(cmd string) bool {
 	return err == nil
 }
 
-func sendToTelltail(skipSend, restore chan bool) {
+func sendToTelltail(skipSend, expire chan bool) {
 	select {
 	case <-skipSend:
 	default:
@@ -41,8 +43,7 @@ func sendToTelltail(skipSend, restore chan bool) {
 		if err != nil {
 			log.Fatal("cannot send clipboard's content to telltail because the clipboard isn't accessible for read\n", err)
 		}
-		restore <- false
-		textToRestore = text
+		expire <- false
 		if len(text) == 0 || len(text) > 65536 {
 			break
 		}
@@ -59,7 +60,7 @@ func sendToTelltail(skipSend, restore chan bool) {
 	}
 }
 
-func autoSend(skipSend, restore chan bool) {
+func autoSend(skipSend, expire chan bool) {
 	switch runtime.GOOS {
 	case "linux":
 		if !commandExists("clipnotify") {
@@ -69,7 +70,7 @@ func autoSend(skipSend, restore chan bool) {
 			return
 		}
 
-		restorationPossible = true
+		expirationPossible = true
 
 		failCount := 0
 
@@ -89,10 +90,10 @@ func autoSend(skipSend, restore chan bool) {
 				continue
 			}
 
-			sendToTelltail(skipSend, restore)
+			sendToTelltail(skipSend, expire)
 		}
 	case "windows":
-		restorationPossible = true
+		expirationPossible = true
 
 		for {
 			cmd := exec.Command("python", "clipnotify_win.py")
@@ -105,7 +106,7 @@ func autoSend(skipSend, restore chan bool) {
 				log.Fatal("clipboard notifier failed")
 			}
 
-			sendToTelltail(skipSend, restore)
+			sendToTelltail(skipSend, expire)
 		}
 	case "darwin":
 		if !commandExists("clipnotify-mac") {
@@ -115,7 +116,7 @@ func autoSend(skipSend, restore chan bool) {
 			return
 		}
 
-		restorationPossible = true
+		expirationPossible = true
 
 		for {
 			cmd := exec.Command("clipnotify-mac")
@@ -124,7 +125,7 @@ func autoSend(skipSend, restore chan bool) {
 				log.Fatal("clipboard notifier failed")
 			}
 
-			sendToTelltail(skipSend, restore)
+			sendToTelltail(skipSend, expire)
 		}
 	default:
 		fmt.Println("Your ctrl+c / cmd+c will not be automatically send to telltail as this feature is not supported yet for your OS.")
@@ -154,7 +155,7 @@ func writeToClipboard(text string, skipSend chan bool) {
 	}
 }
 
-func autoReceive(skipSend, restore, done chan bool) {
+func autoReceive(skipSend, expire, done chan bool) {
 	client := sse.NewClient(url + "/events")
 	client.EncodingBase64 = true // if not done, only first line of multiline string will be send, see https://github.com/r3labs/sse/issues/62
 
@@ -162,22 +163,22 @@ func autoReceive(skipSend, restore, done chan bool) {
 		var j payload
 		json.Unmarshal(msg.Data, &j)
 		if j.Device != device {
-			restore <- true
+			expire <- true
 			writeToClipboard(j.Text, skipSend)
 		}
 	})
 	done <- true
 }
 
-func restoreOriginal(skipSend, restore chan bool) {
+func expireClipboardContent(skipSend, expire chan bool) {
 	t := time.AfterFunc(0, func() {})
 
 	for {
-		r := <-restore
+		e := <-expire
 		t.Stop()
-		if restorationPossible && r {
+		if expirationPossible && e {
 			t = time.AfterFunc(2*time.Minute, func() {
-				writeToClipboard(textToRestore, skipSend)
+				writeToClipboard("", skipSend)
 			})
 		}
 	}
@@ -197,10 +198,10 @@ func main() {
 
 	done := make(chan bool)
 	skipSend := make(chan bool, 1)
-	restore := make(chan bool)
-	go autoSend(skipSend, restore)
-	go autoReceive(skipSend, restore, done)
-	go restoreOriginal(skipSend, restore)
+	expire := make(chan bool)
+	go autoSend(skipSend, expire)
+	go autoReceive(skipSend, expire, done)
+	go expireClipboardContent(skipSend, expire)
 	// This `done` should never happen, because it would mean that somehow
 	// sse client stopped listening. If that happens, we'd need to figure out
 	// a way to resubscribe it.
