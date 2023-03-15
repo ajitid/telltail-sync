@@ -3,8 +3,10 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -31,9 +33,17 @@ type payload struct {
 	Device string
 }
 
-func commandExists(cmd string) bool {
-	_, err := exec.LookPath(cmd)
-	return err == nil
+type cmdExistsParams struct {
+	cmd, relativePath string
+}
+
+func cmdExists(params cmdExistsParams) bool {
+	cwd, err := os.Getwd()
+	if err != nil {
+		log.Fatal("cannot get current working dir")
+	}
+	_, err = os.Stat(filepath.Join(cwd, params.relativePath, params.cmd))
+	return errors.Is(err, fs.ErrNotExist)
 }
 
 func sendToTelltail(skipSend, expire chan bool) {
@@ -64,10 +74,9 @@ func sendToTelltail(skipSend, expire chan bool) {
 func autoSend(skipSend, expire chan bool) {
 	switch runtime.GOOS {
 	case "linux":
-		if !commandExists("clipnotify") {
-			fmt.Println("We need `clipnotify` to detect whether if you've copied something. `clipnotify` is only available for X11 systems.")
-			fmt.Println("If you are on X11 put `clipnotify` in any of these paths and rerun this program:", os.Getenv("PATH"))
-			fmt.Println("Preferably put it in `/usr/local/bin/`.")
+		cmd := "./clipnotify"
+		if !cmdExists(cmdExistsParams{cmd: cmd}) {
+			fmt.Println("We need `clipnotify` to detect whether if you've copied something. But we cannot find it.")
 			return
 		}
 
@@ -76,7 +85,7 @@ func autoSend(skipSend, expire chan bool) {
 		failCount := 0
 
 		for {
-			cmd := exec.Command("clipnotify", "-s", "clipboard")
+			cmd := exec.Command(cmd, "-s", "clipboard")
 			_, err := cmd.Output()
 			if err != nil {
 				// It will continue to fail until the GUI is loaded up after boot/login.
@@ -122,17 +131,16 @@ func autoSend(skipSend, expire chan bool) {
 			sendToTelltail(skipSend, expire)
 		}
 	case "darwin":
-		if !commandExists("clipnotify") {
-			fmt.Println("We need `clipnotify` to detect whether if you've copied something.")
-			fmt.Println("You can put `clipnotify` in any of these paths and rerun this program:", os.Getenv("PATH"))
-			fmt.Println("Preferably put it in `/usr/local/bin/`.")
+		cmd := "./clipnotify"
+		if !cmdExists(cmdExistsParams{cmd: cmd}) {
+			fmt.Println("We need `clipnotify` to detect whether if you've copied something. But we cannot find it.")
 			return
 		}
 
 		expirationPossible = true
 
 		for {
-			cmd := exec.Command("clipnotify")
+			cmd := exec.Command(cmd)
 			_, err := cmd.Output()
 			if err != nil {
 				log.Fatal("clipboard notifier failed")
