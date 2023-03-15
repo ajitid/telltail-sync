@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"time"
 
@@ -93,10 +94,22 @@ func autoSend(skipSend, expire chan bool) {
 			sendToTelltail(skipSend, expire)
 		}
 	case "windows":
+		cwd, err := os.Getwd()
+		if err != nil {
+			fmt.Println("We need `clipnotify.exe` to detect whether if you've copied something. But we cannot resolve your current working directory to find it.")
+			return
+		}
+		clipnotifyDir := filepath.Join(cwd, "clipnotify")
+		if _, err := os.Stat(filepath.Join(clipnotifyDir, "clipnotify.exe")); os.IsNotExist(err) {
+			fmt.Println("We need `clipnotify.exe` to detect whether if you've copied something. But we cannot find the executable.")
+			return
+		}
+
 		expirationPossible = true
 
 		for {
-			cmd := exec.Command("python", "clipnotify_win.py")
+			cmd := exec.Command("clipnotify.exe")
+			cmd.Dir = clipnotifyDir
 			_, err := cmd.Output()
 			if err != nil {
 				// this should never have happened
@@ -109,9 +122,9 @@ func autoSend(skipSend, expire chan bool) {
 			sendToTelltail(skipSend, expire)
 		}
 	case "darwin":
-		if !commandExists("clipnotify-mac") {
-			fmt.Println("We need `clipnotify-mac` to detect whether if you've copied something.")
-			fmt.Println("You can put `clipnotify-mac` in any of these paths and rerun this program:", os.Getenv("PATH"))
+		if !commandExists("clipnotify") {
+			fmt.Println("We need `clipnotify` to detect whether if you've copied something.")
+			fmt.Println("You can put `clipnotify` in any of these paths and rerun this program:", os.Getenv("PATH"))
 			fmt.Println("Preferably put it in `/usr/local/bin/`.")
 			return
 		}
@@ -119,7 +132,7 @@ func autoSend(skipSend, expire chan bool) {
 		expirationPossible = true
 
 		for {
-			cmd := exec.Command("clipnotify-mac")
+			cmd := exec.Command("clipnotify")
 			_, err := cmd.Output()
 			if err != nil {
 				log.Fatal("clipboard notifier failed")
