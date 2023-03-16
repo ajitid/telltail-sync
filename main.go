@@ -47,7 +47,7 @@ func cmdExists(params cmdExistsParams) bool {
 		log.Fatal("cannot get current working dir")
 	}
 	_, err = os.Stat(filepath.Join(cwd, params.relativePath, params.cmd))
-	return errors.Is(err, fs.ErrNotExist)
+	return !errors.Is(err, fs.ErrNotExist)
 }
 
 func sendToTelltail(skipSend, expire chan bool) {
