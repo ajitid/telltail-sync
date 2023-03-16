@@ -38,6 +38,10 @@ type cmdExistsParams struct {
 }
 
 func cmdExists(params cmdExistsParams) bool {
+	if params.cmd == "" {
+		return false
+	}
+
 	cwd, err := os.Getwd()
 	if err != nil {
 		log.Fatal("cannot get current working dir")
@@ -52,6 +56,7 @@ func sendToTelltail(skipSend, expire chan bool) {
 	default:
 		text, err := clipboard.ReadAll()
 		if err != nil {
+			// TODO this fails a lot on x11, check how we can solve it
 			log.Fatal("cannot send clipboard's content to telltail because the clipboard isn't accessible for read\n", err)
 		}
 		expire <- false
