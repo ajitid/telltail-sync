@@ -33,11 +33,11 @@ type payload struct {
 	Device string
 }
 
-type cmdExistsParams struct {
+type fileExistsParams struct {
 	cmd, relativePath string
 }
 
-func cmdExists(params cmdExistsParams) bool {
+func fileExists(params fileExistsParams) bool {
 	if params.cmd == "" {
 		return false
 	}
@@ -57,6 +57,7 @@ func sendToTelltail(skipSend, expire chan bool) {
 		text, err := clipboard.ReadAll()
 		if err != nil {
 			// TODO this fails a lot on x11, check how we can solve it
+			// I suspect xclip, but xsel doesn't at all
 			log.Fatal("cannot send clipboard's content to telltail because the clipboard isn't accessible for read\n", err)
 		}
 		expire <- false
@@ -80,7 +81,7 @@ func autoSend(skipSend, expire chan bool) {
 	switch runtime.GOOS {
 	case "linux":
 		cmd := "./clipnotify"
-		if !cmdExists(cmdExistsParams{cmd: cmd}) {
+		if !fileExists(fileExistsParams{cmd: cmd}) {
 			fmt.Println("We need `clipnotify` to detect whether if you've copied something. But we cannot find it.")
 			return
 		}
@@ -137,7 +138,7 @@ func autoSend(skipSend, expire chan bool) {
 		}
 	case "darwin":
 		cmd := "./clipnotify"
-		if !cmdExists(cmdExistsParams{cmd: cmd}) {
+		if !fileExists(fileExistsParams{cmd: cmd}) {
 			fmt.Println("We need `clipnotify` to detect whether if you've copied something. But we cannot find it.")
 			return
 		}
