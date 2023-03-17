@@ -37,8 +37,8 @@ type fileExistsParams struct {
 	cmd, relativePath string
 }
 
-func fileExists(params fileExistsParams) bool {
-	if params.cmd == "" {
+func fileExists(pathWrtCwd string) bool {
+	if pathWrtCwd == "" {
 		return false
 	}
 
@@ -46,7 +46,7 @@ func fileExists(params fileExistsParams) bool {
 	if err != nil {
 		log.Fatal("cannot get current working dir")
 	}
-	_, err = os.Stat(filepath.Join(cwd, params.relativePath, params.cmd))
+	_, err = os.Stat(filepath.Join(cwd, pathWrtCwd))
 	return !errors.Is(err, fs.ErrNotExist)
 }
 
@@ -81,7 +81,7 @@ func autoSend(skipSend, expire chan bool) {
 	switch runtime.GOOS {
 	case "linux":
 		cmd := "./clipnotify"
-		if !fileExists(fileExistsParams{cmd: cmd}) {
+		if !fileExists(cmd) {
 			fmt.Println("We need `clipnotify` to detect whether if you've copied something. But we cannot find it.")
 			return
 		}
@@ -114,8 +114,7 @@ func autoSend(skipSend, expire chan bool) {
 			fmt.Println("We need `clipnotify.exe` to detect whether if you've copied something. But we cannot resolve your current working directory to find it.")
 			return
 		}
-		clipnotifyDir := filepath.Join(cwd, "clipnotify")
-		if _, err := os.Stat(filepath.Join(clipnotifyDir, "clipnotify.exe")); os.IsNotExist(err) {
+		if !fileExists("clipnotify\\clipnotify.exe") {
 			fmt.Println("We need `clipnotify.exe` to detect whether if you've copied something. But we cannot find the executable.")
 			return
 		}
@@ -123,14 +122,11 @@ func autoSend(skipSend, expire chan bool) {
 		expirationPossible = true
 
 		for {
-			cmd := exec.Command("clipnotify.exe")
-			cmd.Dir = clipnotifyDir
+			cmd := exec.Command(".\\clipnotify.exe")
+			cmd.Dir = filepath.Join(cwd, "clipnotify")
 			_, err := cmd.Output()
 			if err != nil {
-				// this should never have happened
-				// the only way it could fail if:
-				// - either deps for clipnotify have not been installed, or
-				// - or the python file to run couldn't be located
+				// this should never occur
 				log.Fatal("clipboard notifier failed")
 			}
 
@@ -138,7 +134,7 @@ func autoSend(skipSend, expire chan bool) {
 		}
 	case "darwin":
 		cmd := "./clipnotify"
-		if !fileExists(fileExistsParams{cmd: cmd}) {
+		if !fileExists(cmd) {
 			fmt.Println("We need `clipnotify` to detect whether if you've copied something. But we cannot find it.")
 			return
 		}
