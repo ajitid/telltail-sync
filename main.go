@@ -15,7 +15,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/atotto/clipboard"
+	"github.com/ajitid/clipboard"
 	"github.com/r3labs/sse/v2"
 )
 
