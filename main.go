@@ -50,7 +50,7 @@ func fileExists(pathWrtCwd string) bool {
 	return !errors.Is(err, fs.ErrNotExist)
 }
 
-func sendToTelltail(skipSend, expire chan bool) {
+func sendToTelltail(skipSend <-chan bool, expire chan<- bool) {
 	select {
 	case <-skipSend:
 	default:
@@ -77,7 +77,7 @@ func sendToTelltail(skipSend, expire chan bool) {
 	}
 }
 
-func autoSend(skipSend, expire chan bool) {
+func autoSend(skipSend <-chan bool, expire chan<- bool) {
 	switch runtime.GOOS {
 	case "linux":
 		cmd := "./clipnotify"
@@ -155,7 +155,7 @@ func autoSend(skipSend, expire chan bool) {
 	}
 }
 
-func writeToClipboard(text string, skipSend chan bool) {
+func writeToClipboard(text string, skipSend chan<- bool) {
 	clipText, err := clipboard.ReadAll()
 	if err != nil {
 		log.Fatal("unable to write text to clipboard because clipboard isn't accessible for read\n", err)
@@ -178,7 +178,7 @@ func writeToClipboard(text string, skipSend chan bool) {
 	}
 }
 
-func autoReceive(skipSend, expire, done chan bool) {
+func autoReceive(skipSend, expire chan<- bool) {
 	client := sse.NewClient(url + "/events")
 	client.EncodingBase64 = true // if not done, only first line of multiline string will be send, see https://github.com/r3labs/sse/issues/62
 
@@ -190,10 +190,9 @@ func autoReceive(skipSend, expire, done chan bool) {
 			writeToClipboard(j.Text, skipSend)
 		}
 	})
-	done <- true
 }
 
-func expireClipboardContent(skipSend, expire chan bool) {
+func expireClipboardContent(skipSend chan<- bool, expire <-chan bool) {
 	t := time.AfterFunc(0, func() {})
 
 	for {
@@ -219,14 +218,12 @@ func main() {
 		log.Fatal("`--device` parameter not provided")
 	}
 
-	done := make(chan bool)
 	skipSend := make(chan bool, 1)
 	expire := make(chan bool)
 	go autoSend(skipSend, expire)
-	go autoReceive(skipSend, expire, done)
 	go expireClipboardContent(skipSend, expire)
-	// This `done` should never happen, because it would mean that somehow
-	// sse client stopped listening. If that happens, we'd need to figure out
-	// a way to resubscribe it.
-	<-done
+	// This fn should never complete, because it would mean that the SSE client has stopped listening.
+	// If that happens, we'd need to figure out a way to resubscribe to it.
+	// If this fn ends, the program would exit, which something we don't want to happen.
+	autoReceive(skipSend, expire)
 }
