@@ -29,8 +29,8 @@ var (
 var expirationPossible bool
 
 type payload struct {
-	Text   string
-	Device string
+	Text   string `json:"text"`
+	Device string `json:"device"`
 }
 
 type fileExistsParams struct {
