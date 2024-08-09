@@ -92,8 +92,7 @@ func autoSend(skipSend <-chan bool, expire chan<- bool) {
 
 		for {
 			cmd := exec.Command(cmd, "-s", "clipboard")
-			_, err := cmd.Output()
-			if err != nil {
+			if err := cmd.Run(); err != nil {
 				// It will continue to fail until the GUI is loaded up after boot/login.
 				// We'll silently wait for it to succeed.
 				// Probably the proper way to solve this is to make changes in the systemd
@@ -109,12 +108,7 @@ func autoSend(skipSend <-chan bool, expire chan<- bool) {
 			sendToTelltail(skipSend, expire)
 		}
 	case "windows":
-		cwd, err := os.Getwd()
-		if err != nil {
-			fmt.Println("We need `clipnotify.exe` to detect whether if you've copied something. But we cannot resolve your current working directory to find it.")
-			return
-		}
-		if !fileExists("clipnotify\\clipnotify.exe") {
+		if !fileExists(".\\clipnotify.exe") {
 			fmt.Println("We need `clipnotify.exe` to detect whether if you've copied something. But we cannot find the executable.")
 			return
 		}
@@ -123,9 +117,7 @@ func autoSend(skipSend <-chan bool, expire chan<- bool) {
 
 		for {
 			cmd := exec.Command(".\\clipnotify.exe")
-			cmd.Dir = filepath.Join(cwd, "clipnotify")
-			_, err := cmd.Output()
-			if err != nil {
+			if err := cmd.Run(); err != nil {
 				// this should never occur
 				log.Fatal("clipboard notifier failed")
 			}
@@ -143,8 +135,7 @@ func autoSend(skipSend <-chan bool, expire chan<- bool) {
 
 		for {
 			cmd := exec.Command(cmd)
-			_, err := cmd.Output()
-			if err != nil {
+			if err := cmd.Run(); err != nil {
 				log.Fatal("clipboard notifier failed")
 			}
 
