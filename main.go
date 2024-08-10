@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -115,14 +116,28 @@ func autoSend(skipSend <-chan bool, expire chan<- bool) {
 
 		expirationPossible = true
 
-		for {
-			cmd := exec.Command(".\\clipnotify.exe")
-			if err := cmd.Run(); err != nil {
-				// this should never occur
-				log.Fatal("clipboard notifier failed")
-			}
+		cmd := exec.Command(".\\clipnotify.exe")
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			log.Fatal("piping clipnotify contents to stdout failed")
+		}
+		scanner := bufio.NewScanner(stdout)
+		scanner.Split(bufio.ScanLines)
+		if err := cmd.Start(); err != nil {
+			// this should never occur
+			log.Fatal("failed to start clipnotify")
+		}
 
-			sendToTelltail(skipSend, expire)
+		for scanner.Scan() {
+			m := scanner.Text()
+			if m == "changed" {
+				sendToTelltail(skipSend, expire)
+			}
+		}
+
+		if err := cmd.Wait(); err != nil {
+			// this should never occur
+			log.Fatal("clipboard notifier failed")
 		}
 	case "darwin":
 		cmd := "./clipnotify"
