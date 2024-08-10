@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/ajitid/clipboard"
@@ -116,13 +117,12 @@ func autoSend(skipSend <-chan bool, expire chan<- bool) {
 
 		expirationPossible = true
 
-		cmd := exec.Command(".\\clipnotify.exe")
+		cmd := exec.Command(".\\clipnotify.exe", "--listen")
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
 			log.Fatal("piping clipnotify contents to stdout failed")
 		}
 		scanner := bufio.NewScanner(stdout)
-		scanner.Split(bufio.ScanLines)
 		if err := cmd.Start(); err != nil {
 			// this should never occur
 			log.Fatal("failed to start clipnotify")
@@ -130,7 +130,7 @@ func autoSend(skipSend <-chan bool, expire chan<- bool) {
 
 		for scanner.Scan() {
 			m := scanner.Text()
-			if m == "changed" {
+			if strings.HasPrefix(m, "{\"text\":") {
 				sendToTelltail(skipSend, expire)
 			}
 		}
