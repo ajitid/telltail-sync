@@ -163,8 +163,10 @@ func autoSend(skipSend <-chan bool, expire chan<- bool) {
 
 func writeToClipboard(text string, skipSend chan<- bool) {
 	clipText, err := clipboard.ReadAll()
+	// This can fail for many reasons. For example, it may fail when Windows is resumed from its dozed off state.
 	if err != nil {
-		log.Fatal("unable to write text to clipboard because clipboard isn't accessible for read\n", err)
+		log.Println("unable to write text to clipboard because clipboard isn't accessible for read\n", err)
+		return
 	}
 	/*
 		Avoid unnecessary writes, because:
