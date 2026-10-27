@@ -3,7 +3,7 @@ _Update: An [official solution](https://github.com/tailscale/tailscale/issues/49
 ---
 
 <p align="center">
-  <img src="./logo.svg" height="100px" />
+  <img src="./logo.svg" width="270px" />
 </p>
 
 ## Intro
