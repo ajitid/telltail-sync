@@ -1,6 +1,6 @@
 module telltail-sync
 
-go 1.20
+go 1.25.0
 
 require (
 	github.com/ajitid/clipboard v0.1.5
@@ -8,6 +8,6 @@ require (
 )
 
 require (
-	golang.org/x/net v0.38.0 // indirect
+	golang.org/x/net v0.55.0 // indirect
 	gopkg.in/cenkalti/backoff.v1 v1.1.0 // indirect
 )
